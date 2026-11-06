@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: libro-service
+  profiles:
+    default: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+server:
+  port: ${SERVER_PORT:8081}

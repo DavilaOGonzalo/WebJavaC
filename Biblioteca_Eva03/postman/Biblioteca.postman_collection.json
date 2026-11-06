@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "Biblioteca - microservicios",
+    "description": "Flujo de CRUD base, préstamo/devolución y respuestas inválidas. Iniciar los servicios en localhost:8081-8083.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "libroUrl", "value": "http://localhost:8081"},
+    {"key": "lectorUrl", "value": "http://localhost:8082"},
+    {"key": "prestamoUrl", "value": "http://localhost:8083"},
+    {"key": "lectorId", "value": ""},
+    {"key": "libroId", "value": ""},
+    {"key": "prestamoId", "value": ""},
+    {"key": "documentoPrueba", "value": ""},
+    {"key": "isbnPrueba", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Crear lector (201)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"documento\":\"{{documentoPrueba}}\",\"nombres\":\"Maria Perez\",\"contacto\":\"maria@example.com\"}"},
+        "url": "{{lectorUrl}}/api/lectores"
+      },
+      "event": [
+        {"listen": "prerequest", "script": {"exec": ["pm.collectionVariables.set('documentoPrueba', Date.now().toString());"], "type": "text/javascript"}},
+        {"listen": "test", "script": {"exec": ["pm.test('Lector creado', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) pm.collectionVariables.set('lectorId', pm.response.json().id);"], "type": "text/javascript"}}
+      ]
+    },
+    {
+      "name": "Crear libro (201)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"isbn\":\"{{isbnPrueba}}\",\"titulo\":\"El principito\",\"autor\":\"Antoine de Saint-Exupery\",\"stock\":2}"},
+        "url": "{{libroUrl}}/api/libros"
+      },
+      "event": [
+        {"listen": "prerequest", "script": {"exec": ["pm.collectionVariables.set('isbnPrueba', '978' + Date.now().toString().slice(-10));"], "type": "text/javascript"}},
+        {"listen": "test", "script": {"exec": ["pm.test('Libro creado', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) pm.collectionVariables.set('libroId', pm.response.json().id);"], "type": "text/javascript"}}
+      ]
+    },
+    {
+      "name": "Registrar préstamo válido (201, stock -1)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"lectorId\":{{lectorId}},\"libroId\":{{libroId}},\"fechaPrestamo\":\"2026-11-06\",\"fechaLimite\":\"2026-11-20\"}"},
+        "url": "{{prestamoUrl}}/api/prestamos"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Préstamo registrado', function () { pm.response.to.have.status(201); });", "if (pm.response.code === 201) pm.collectionVariables.set('prestamoId', pm.response.json().id);"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Consultar stock reservado",
+      "request": {"method": "GET", "url": "{{libroUrl}}/api/libros/{{libroId}}"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Stock disminuyó al prestar', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().stock).to.eql(1); });"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Devolver préstamo (200, estado DEVUELTO y stock +1)",
+      "request": {"method": "POST", "url": "{{prestamoUrl}}/api/prestamos/{{prestamoId}}/devolucion"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Préstamo devuelto', function () { pm.response.to.have.status(200); });", "pm.test('Estado DEVUELTO', function () { pm.expect(pm.response.json().estado).to.eql('DEVUELTO'); });"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Verificar stock restituido",
+      "request": {"method": "GET", "url": "{{libroUrl}}/api/libros/{{libroId}}"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Stock restituido al devolver', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().stock).to.eql(2); });"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Devolución repetida (409)",
+      "request": {"method": "POST", "url": "{{prestamoUrl}}/api/prestamos/{{prestamoId}}/devolucion"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Devolución repetida rechazada', function () { pm.response.to.have.status(409); });"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Préstamo con fechas inválidas (400)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"lectorId\":{{lectorId}},\"libroId\":{{libroId}},\"fechaPrestamo\":\"2026-11-20\",\"fechaLimite\":\"2026-11-06\"}"},
+        "url": "{{prestamoUrl}}/api/prestamos"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Fechas inválidas rechazadas', function () { pm.response.to.have.status(400); });"], "type": "text/javascript"}}]
+    },
+    {
+      "name": "Préstamo con libro inexistente (404)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"lectorId\":{{lectorId}},\"libroId\":999999,\"fechaPrestamo\":\"2026-11-06\",\"fechaLimite\":\"2026-11-20\"}"},
+        "url": "{{prestamoUrl}}/api/prestamos"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('Libro inexistente', function () { pm.response.to.have.status(404); });"], "type": "text/javascript"}}]
+    }
+  ]
+}
